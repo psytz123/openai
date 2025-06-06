@@ -2,9 +2,21 @@ import os
 import argparse
 import requests
 import datetime
+import time
 
 SAM_API_URL = "https://api.sam.gov/prod/opportunities/v2/search"
 GRANTS_API_URL = "https://apply07.grants.gov/grantsws/rest/opportunities/search"
+
+
+def _request_with_retry(method, url, *, retries=3, **kwargs):
+    for attempt in range(retries):
+        resp = requests.request(method, url, **kwargs)
+        if resp.status_code == 429 and attempt < retries - 1:
+            time.sleep(1)
+            continue
+        resp.raise_for_status()
+        return resp
+    return resp
 
 def search_sam(keyword, limit=10, days=30):
     api_key = os.getenv("SAM_API_KEY")
@@ -22,8 +34,7 @@ def search_sam(keyword, limit=10, days=30):
         "postedTo": posted_to,
         "placeOfPerformanceCountryCode": "USA"
     }
-    resp = requests.get(SAM_API_URL, params=params)
-    resp.raise_for_status()
+    resp = _request_with_retry("get", SAM_API_URL, params=params)
     data = resp.json()
     return data.get("opportunitiesData", [])
 
@@ -36,8 +47,7 @@ def search_grants(keyword, rows=10):
         "fundingOppNum": "",
         "cfda": "",
     }
-    resp = requests.post(GRANTS_API_URL, json=payload)
-    resp.raise_for_status()
+    resp = _request_with_retry("post", GRANTS_API_URL, json=payload)
     data = resp.json()
     return data.get("oppHits", [])
 
@@ -69,6 +79,12 @@ def main():
         default=30,
         help="how many days back to search SAM.gov",
     )
+    parser.add_argument(
+        "--min-grant",
+        type=float,
+        default=25000,
+        help="minimum estimated funding for grants.gov results",
+    )
     args = parser.parse_args()
 
     for kw in args.keywords:
@@ -88,7 +104,7 @@ def main():
                         amount = float(est.replace("$", "").replace(",", ""))
                     except ValueError:
                         amount = 0
-                    if amount < 25000:
+                    if amount < args.min_grant:
                         continue
                 print(format_grant(grant))
         except Exception as exc:
