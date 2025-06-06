@@ -1,4 +1,5 @@
 import os
+import argparse
 import requests
 
 SAM_API_URL = "https://api.sam.gov/prod/opportunities/v2/search"
@@ -35,29 +36,52 @@ def search_grants(keyword, rows=10):
     data = resp.json()
     return data.get("oppHits", [])
 
+def format_grant(grant):
+    opp_num = grant.get("number")
+    title = grant.get("title")
+    close_date = grant.get("closeDate")
+    return f"- {opp_num}: {title} (closes {close_date})"
+
+
+def format_notice(notice):
+    notice_id = notice.get("noticeId")
+    title = notice.get("title")
+    close_date = notice.get("responseDate")
+    return f"- {notice_id}: {title} (closes {close_date})"
+
+
 def main():
-    keywords = ["apparel", "knit textiles", "Berry Amendment"]
-    for kw in keywords:
+    parser = argparse.ArgumentParser(description="Monitor SAM.gov and Grants.gov for opportunities")
+    parser.add_argument(
+        "keywords",
+        nargs="*",
+        default=["apparel", "knit textiles", "Berry Amendment"],
+        help="keywords to search for",
+    )
+    args = parser.parse_args()
+
+    for kw in args.keywords:
         print(f"\nSAM.gov results for '{kw}':")
-        for opp in search_sam(kw):
-            notice_id = opp.get("noticeId")
-            title = opp.get("title")
-            close_date = opp.get("responseDate")
-            print(f"- {notice_id}: {title} (closes {close_date})")
+        try:
+            for opp in search_sam(kw):
+                print(format_notice(opp))
+        except Exception as exc:
+            print(f"Failed to fetch SAM.gov results: {exc}")
+
         print(f"\nGrants.gov results for '{kw}':")
-        for grant in search_grants(kw):
-            opp_num = grant.get("number")
-            title = grant.get("title")
-            close_date = grant.get("closeDate")
-            estimated_funding = grant.get("estimatedFunding")
-            if estimated_funding:
-                try:
-                    amount = float(estimated_funding.replace("$", "").replace(",", ""))
-                except ValueError:
-                    amount = 0
-                if amount < 25000:
-                    continue
-            print(f"- {opp_num}: {title} (closes {close_date})")
+        try:
+            for grant in search_grants(kw):
+                est = grant.get("estimatedFunding")
+                if est:
+                    try:
+                        amount = float(est.replace("$", "").replace(",", ""))
+                    except ValueError:
+                        amount = 0
+                    if amount < 25000:
+                        continue
+                print(format_grant(grant))
+        except Exception as exc:
+            print(f"Failed to fetch Grants.gov results: {exc}")
 
 if __name__ == "__main__":
     main()
