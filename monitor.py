@@ -1,20 +1,25 @@
 import os
 import argparse
 import requests
+import datetime
 
 SAM_API_URL = "https://api.sam.gov/prod/opportunities/v2/search"
 GRANTS_API_URL = "https://apply07.grants.gov/grantsws/rest/opportunities/search"
 
-def search_sam(keyword, limit=10):
+def search_sam(keyword, limit=10, days=30):
     api_key = os.getenv("SAM_API_KEY")
     if not api_key:
         raise RuntimeError("Please set the SAM_API_KEY environment variable")
+    today = datetime.date.today()
+    posted_from = (today - datetime.timedelta(days=days)).strftime("%m/%d/%Y")
+    posted_to = today.strftime("%m/%d/%Y")
     params = {
         "api_key": api_key,
         "q": keyword,
         "limit": limit,
         "offset": 0,
-        "postedFrom": "TODAY-30DAYS",
+        "postedFrom": posted_from,
+        "postedTo": posted_to,
         "placeOfPerformanceCountryCode": "USA"
     }
     resp = requests.get(SAM_API_URL, params=params)
@@ -58,12 +63,18 @@ def main():
         default=["apparel", "knit textiles", "Berry Amendment"],
         help="keywords to search for",
     )
+    parser.add_argument(
+        "--days",
+        type=int,
+        default=30,
+        help="how many days back to search SAM.gov",
+    )
     args = parser.parse_args()
 
     for kw in args.keywords:
         print(f"\nSAM.gov results for '{kw}':")
         try:
-            for opp in search_sam(kw):
+            for opp in search_sam(kw, days=args.days):
                 print(format_notice(opp))
         except Exception as exc:
             print(f"Failed to fetch SAM.gov results: {exc}")

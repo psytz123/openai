@@ -12,13 +12,14 @@ This repository includes a simple script for monitoring U.S. government contract
 - A valid SAM.gov API key stored in the environment variable `SAM_API_KEY`.
 
 ## Usage
-Run the script from the command line. You can optionally provide search keywords:
+Run the script from the command line. You can optionally provide search keywords
+and a date range:
 
 ```bash
-python monitor.py berry textile "technical apparel"
+python monitor.py berry textile "technical apparel" --days 15
 ```
 
-If no keywords are supplied, the script searches for `apparel`, `knit textiles`, and `Berry Amendment` by default.
+If no keywords are supplied, the script searches for `apparel`, `knit textiles`, and `Berry Amendment` by default. The `--days` flag controls how many days back the SAM.gov search goes (30 days by default).
 
 The script prints a list of current opportunities for each keyword.
 
